@@ -131,14 +131,22 @@ if (isset($_SESSION)) {
 include("menu.php");
 
 if ($mysession["taskid"] > 0 && isset($mysession["userid"]) && $mysession["status"] != "root") {
-	$source_sentences = getSourceSentences($mysession["taskid"]);
+	if (task_with_batching($mysession["taskid"])){
+
+		$source_sentences = getBatchedSourceSentences($mysession["taskid"], $mysession["userid"]);
+
+	}else{
+
+		$source_sentences = getSourceSentences($mysession["taskid"]);
+
+	}
 	if (count($source_sentences) == 0) {
 		print "<div class='error'><font color=red><b>Sorry!</b></font> No sentences have been found for this task.</div>";
 		exit;
 	}
 	$done_sentences = getDoneSentences($mysession["taskid"], $mysession["userid"]);
 	#$error_sentences = getErrorSentences($mysession["taskid"]);
-	print "<div class='error'>&nbsp;&nbsp; <b>".count($done_sentences) . "</b>/<b>" . count($source_sentences) ."</b> <small>evaluated items</small></div><div class=index><br>";
+	print "<div class='error'>&nbsp;&nbsp; You have annotated <b>".count($done_sentences)."</b> items out of <b>".count($source_sentences)."</b>.</small></div><div class=index><br>";
 
 	$i=1;
 	while (list($k,$arr) = each($source_sentences)) {
@@ -165,8 +173,16 @@ if ($mysession["taskid"] > 0 && isset($mysession["userid"]) && $mysession["statu
 		print "<a name='$k'><div class=row><div class=sentindex>$done <strong>$i.</strong> </div>";
 		if ($mysession["tasktype"] == "docann") {
 			print "<div class='cell none'><a href='".$mysession["tasktype"].".php?id=$k&sentidx=$i&taskid=".$mysession["taskid"]."'>".$arr[2]."</a></div>";
+		} elseif ($mysession["tasktype"] == "errors_test"){
+
+			print showSentence($arr[0], "<a href='errors.php?id=$k&sentidx=$i&taskid=".$mysession["taskid"]."'>".$arr[1]."</a>","none",0);
+
 		} else {
-			print showSentence($arr[0], "<a href='".$mysession["tasktype"].".php?id=$k&sentidx=$i&taskid=".$mysession["taskid"]."'>".$arr[1]."</a>","none",0); 
+      print showSentence($arr[0], "<a href='".$mysession["tasktype"].".php?id=$k&sentidx=$i&taskid=".$mysession["taskid"]."'>".$arr[1]."</a>","none",0);
+      /* $target_sentences = getSystemSentences($k, $mysession["taskid"]);
+      while (list($t_k,$t_arr) = each($target_sentences)) {
+        print showSentence($arr[0], "<a href='".$mysession["tasktype"].".php?id=$k&sentidx=$i&taskid=".$mysession["taskid"]."'>".$target_sentences[$t_k][1]."</a>","none",0); 
+      } */
 		}
 		print "</div></p>";
 		$i++;
@@ -175,7 +191,7 @@ if ($mysession["taskid"] > 0 && isset($mysession["userid"]) && $mysession["statu
 	print "<div class=index><center>";
 	if (empty($mysession["status"])) {
             print "<h3>This is an end user interface for the evaluation of Machine Translation systems</h3>\n<p>Sign in, please!</p>";
-            print "<div style='position:absolute; bottom: 50px; width: 100%'><a href='http://www.matecat.com/'><img width=300 valign=bottom src='img/matecat-logo.png' align=top title='MateCat project' border=0></a><br>\nThe work was partially supported by the MateCat project funded by the European Union.</div>";
+            print "<div style='position:absolute; bottom: 50px; width: 100%'><a href='https://browser.mt'><img valign=bottom src='img/bergamot-logo.png' align=top title='Bergamot project' border=0 height='128'></a><br /><br />The work is supported by the Bergamot project funded by the European Union.</div>";
 	} else if (empty($mysession["tasknow"])) {
 		if ($mysession["status"] == "admin" || $mysession["status"] == "advisor") {
 			print "<br>Welcome " .$mysession["username"]."!";

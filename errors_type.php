@@ -30,7 +30,7 @@ while (list ($sentence_id, $sentence_item) = each($hash_target)) {
 				
 $checkid = 0;
 while (list ($val,$attrs) = each($ranges)) {
-	if ($val <= 1) {
+	if ($val <= 1 || $val == 7) {
 		if (count($errors) == 0 || isset($errors[0]) || isset($errors[1])) {
 			$color="#".$attrs[1];
 			$bordercolor="4px solid ".$color;
@@ -41,7 +41,8 @@ while (list ($val,$attrs) = each($ranges)) {
 				print "<table cellspacing=4>";
 			} 
 			print "<td style='padding: 1px; background: $color; border: $bordercolor; box-shadow: 2px 2px 2px #888; font-size:13px' id='check.$i.$checkid' align=center onmouseover='fadeIn(this);'  onmouseout='fadeOut(this,\"".$attrs[1]."\");' onClick=\"check('$id','$targetid',$userid,$val,$checkid,".count($ranges).",$i,".count($hash_target).");\" nowrap>".$attrs[0] ."</td></tr>";
-			if ($val == 1) {
+			// if ($val == 1) {
+			if ($val == 7) {
 				print "</table>";
 			}
 			$checkid++;

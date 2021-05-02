@@ -17,6 +17,7 @@ if (!isset($taskid)) {
 	$taskid = $mysession["taskid"];
 }
 
+
 if (isset($monitoring) && $monitoring == 1) {
 	$sentidx=-1;
 } else {
@@ -78,43 +79,6 @@ function hideRange(el,sentid,range) {
     }
 }
 
-function removeAnnotation(id,targetid,ranges,errid) {
-  //alert(id+","+ranges);
-  if (confirm("Do you really want to cancel this annotation?")) {
-  	$.ajax({
-  		url: 'update.php',
-  		type: 'GET',
-      	data: "id="+id+"&targetid="+targetid+"&taskid=<?php echo $taskid;?>&userid=<?php echo $userid;?>&check="+errid+"&action=remove&tokenids="+ranges,
-  		async: false,
-  		cache:false,
-  		crossDomain: true,
-  		success: function(response) {
-  			$("#output"+targetid).html(response);
-  			$.ajax({
-  				url: 'errors_type.php',
- 				type: 'GET',
-  				data: "id=<?php echo $id;?>&targetid="+targetid+"&userid=<?php echo $userid;?>",
-  				async: false,
-  				cache:false,
-  				crossDomain: true,
-  				success: function(response) {
-  					$("#errors"+targetid).html(response);
-				}
-			});
-  		},
-  		error: function(response, xhr,err ) {
-        	//alert(err+"\nreadyState: "+xhr.readyState+"\nstatus: "+xhr.status+"\nresponseText: "+xhr.responseText);
-        	switch(xhr.status) {
-				case 200: 
-					alert("Sorry! Data has not been saved!");
-			}
-		}
-  	});
-	//window.open("errors_output.php?id="+id+"&sentidx=<?php echo $sentidx; ?>","_self");
-                        
-  }	
-}
-
 $(document).ready(function() {
 	try {
 		$(document).bind("contextmenu", function(e) {
@@ -152,7 +116,7 @@ $(document).ready(function() {
 <?php
 	$ranges = $mysession["taskranges"];
 	while (list ($val,$attrs) = each($ranges)) {
-		if ($val > 1 && $val < 7) {
+		if ($val > 1 && $val < 13) {
 			print "<tr><td onclick=\"javascript:saveAnnotationRanges($val);\" onmouseover=\"this.className='yellow'\" onmouseout=\"this.className='whitebg'\">".$attrs[0]."</td></tr>";
 		}
 	}
@@ -167,32 +131,11 @@ $(document).ready(function() {
 -->
 
 <?php
-if (task_with_batching($taskid)){
-	$prevAndnextIDs = getBatchedPrevNext($taskid, $id, $userid);
-} else {
-	$prevAndnextIDs = getPrevNext($taskid, $id);
-}
-
+$prevAndnextIDs = getPrevNext($taskid, $id);	
 if ($sentidx != -1) {
  	$sentidx = $prevAndnextIDs[2];
 }
 
-$target_ids = getTargetIds($id, $taskid);
-$target_ids = str_replace("\"", "'", json_encode($target_ids));
-
-
-print "<div class=donebottom>";
-$prevpage = "errors.php?id=".$prevAndnextIDs[0]."&taskid=$taskid&sentidx=".($sentidx-1);
-$nextpage = "errors.php?id=".$prevAndnextIDs[1]."&taskid=$taskid&sentidx=".($sentidx+1);
-print "<button id=prev name=prev onclick=\"javascript:doneAndIndex('$id', $target_ids,'$userid', '$taskid', this);javascript:next('$prevpage');\">&nbsp;« prev&nbsp;</button> &nbsp;";
-print "<button style='width: 170' id=done name=done onclick=\"javascript:doneAndIndex('$id',$target_ids,'$userid', '$taskid', this);\" disabled></button> &nbsp;";
-print "<button id=next name=next onclick=\"javascript:doneAndIndex('$id',$target_ids,'$userid', '$taskid', this);javascript:next('$nextpage');\">&nbsp;next »&nbsp;</button>";
-$nextundone = getNextUndone($taskid, $userid);
-$nextundonepage = "errors.php?id=".$nextundone[0]."&taskid=$taskid&sentidx=".$nextundone[1];
-print "<input type='hidden' id='nextundonepage' value='".$nextundonepage."'/>";
-print "<button id=nextundone name=nextundone onclick=\"javascript:nextUndone($target_ids, '$userid');\">&nbsp;next unconfirmed»&nbsp;</button>";
-
-print "</div>";
 if (empty($mysession["status"])) {
 	print "<script>window.open('index.php','_self');</script>";
 }
@@ -217,40 +160,15 @@ if ($taskid > 0 && isset($id) && isset($userid)) {
 		//print "<div style='display: table-cell; float: left; width: 666px'>";
 		
 		//Add output row
-		$sent = showSentence ($sentence_item[0], $sentence_item[1], "output", $sentence_item[2], $sentence_id, $errors, $ranges);
+		
+		sent = showSentence ($sentence_item[0], $sentence_item[1], "output", $sentence_item[2], $sentence_id, $errors, $ranges);
 		//ripristino eventuali errori nei carattri con lastring vuota se non sono stati fatte delle anotazioni
 		#if(count($errors) == 0) {
 		#	$sent = preg_replace("/<img src='img\/check_error.png' width=16>/","",$sent);
 		#}
-		print "<div class=row><div class=label>OUTPUT <b>".($i+1)."</b>: </div><div class=cell id='output".$sentence_id."'>$sent</div></div>";
+		print "<div class=row><div class=label>Annotation: </div><div class=cell id='output".$sentence_id."'>$sent</div></div>";
 		//end output row
 		
-		//Add comment row
-		print "<div class=row><div class=cell>";
-		$comment = getComment($sentence_id,$userid);
-		
-		if ($monitoring==0) {		
-		?>
-		<!-- comment -->
-		<a href='#comm<?php echo $sentence_id; ?>' class='nav-toggle'><img src='img/addcomment.png' style='vertical-align: top; float: right;' width=80></a>&nbsp;</div>
-			<div id="comm<?php echo $sentence_id; ?>" style="display:none; font-size: 12px;">
-				<textarea id=comm<?php echo $sentence_id; ?>_text rows=2 cols=75 style='background: lightyellow'><?php echo $comment; ?></textarea>
-			</div>
-			<div style="display: inline-block; top: 10px;" id=comm<?php echo $sentence_id; ?>_label><?php echo $comment; ?></div>		
-		
-		<?php
-		} else {
-			if ($comment !="") {
-				print "<small><i>Comment:</i></small> </div>$comment<div class=cell>";
-			}
-		}
-		?>
-		<!-- fine comment -->
-		<?php
-		print "</div>";
-		//end comment row	
-			
-		print "</div>";
 		//end cell (output+comment)
 		
 		//start error cell 
@@ -260,8 +178,8 @@ if ($taskid > 0 && isset($id) && isset($userid)) {
 		reset($ranges);
 		$checkid = 0;
 		while (list ($val,$attrs) = each($ranges)) {
-			if ($val <= 1 || $val == 7) {
-				if (count($errors) == 0 || isset($errors[0]) || isset($errors[1]) || isset($errors[7])) {
+			if ($val <= 1 || $val == 13) {
+				if (count($errors) == 0 || isset($errors[0]) || isset($errors[1])) {
 					$color="#".$attrs[1];
 					$bordercolor="4px solid ".$color;
 					if (isset($errors[$val])) {
@@ -270,9 +188,9 @@ if ($taskid > 0 && isset($id) && isset($userid)) {
 					if ($val == 0) {
 						print "<table cellspacing=4>";
 					} 
-					print "<td style='padding: 1px; background: $color; border: $bordercolor; box-shadow: 2px 2px 2px #888; font-size:13px' id='check.$i.$checkid' align=center onmouseover='fadeIn(this);'  onmouseout='fadeOut(this,\"".$attrs[1]."\");' onClick=\"check('$id','$sentence_id',$userid,$val,$checkid,".count($ranges).",$i,".count($hash_target).");\" nowrap>".$attrs[0] ."</td></tr>";
+					print "<td style='padding: 1px; background: $color; border: $bordercolor; box-shadow: 2px 2px 2px #888; font-size:13px' id='check.$i.$checkid' align=center nowrap>".$attrs[0] ."</td></tr>";
 					// if ($val == 1) {
-					if ($val == 7) {
+					if ($val == 13) {
 						print "</table>";
 					}
 				} 
@@ -281,7 +199,7 @@ if ($taskid > 0 && isset($id) && isset($userid)) {
 		}
 				
 		while (list ($errID, $errARRAY) = each($errors)) {
-			if ($errID > 1 && $errID != 7) {
+			if ($errID > 1) {
 			  	$tokenids = explode(",",$errARRAY[0]);
 				$texts = explode("__BR__",$errARRAY[1]);
 				$annotations = "";
@@ -292,7 +210,7 @@ if ($taskid > 0 && isset($id) && isset($userid)) {
 							$delicon = "<a href=\"javascript:removeAnnotation($id,$sentence_id,'".$tokenids[$r]."',$errID);\"><img src='img/delete.png' width=12></a>";
 						}
 					}
-					$annotations .= "- $delicon<div style='display: inline; font-size:17px' onmouseover=\"javascript:showRange(this,$sentence_id,'".$tokenids[$r]."');\" onmouseout=\"javascript:hideRange(this,$sentence_id,'".$tokenids[$r]."');\">&nbsp;";
+					$annotations .= "- <div style='display: inline; font-size:17px' onmouseover=\"javascript:showRange(this,$sentence_id,'".$tokenids[$r]."');\" onmouseout=\"javascript:hideRange(this,$sentence_id,'".$tokenids[$r]."');\">&nbsp;";
 					if (trim($texts[$r]) == "") {
 						$annotations .= "<small>_SPACE_</small>";
 					} else {
@@ -301,9 +219,6 @@ if ($taskid > 0 && isset($id) && isset($userid)) {
 					$annotations .="</div><br>";
 				}
 				print "<div style='background: #".$ranges[$errID][1]."; white-space: nowrap;'> ";
-				if ($monitoring==0) {	
-					print "<button id=reset.$i.$errID onclick=\"javascript:reset('$id','$sentence_id',$taskid,$userid,$errID,".count($ranges).",$sentidx,".count($hash_target).");\">reset</button>";
-				}
 				print "&nbsp;<i><small><b>".$ranges[$errID][0].":</b></small></i></div>$annotations";
 			}
 		}	  
@@ -311,7 +226,6 @@ if ($taskid > 0 && isset($id) && isset($userid)) {
 		print "</div></td>";
 		//end error cell
 		
-		print "</table><div style='display: inline-block; border-top: dashed #666 1px; width: 100%'>&nbsp;</div>";
 		$i++;	
 	  }
 	
@@ -386,8 +300,8 @@ function saveAnnotationRanges(errid) {
 		}
 		
     	elid++;	
-	}	
-
+	}
+	
 	//alert("ID: <?php echo $id;?>, OUTPUTID: "+OUTPUTID+", ERRORID: "+ERRORID+", RANGES: "+ranges);
 	ranges = ranges.replace(/^,\s*/,"");	
 	entities = entities.replace(/^__BR__\s*/, "").replace(/&nbsp;/gi," ");
@@ -560,3 +474,4 @@ $('.unselect').textSelect('disable');
 </div>
 </body>
 </html>
+

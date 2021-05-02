@@ -28,28 +28,42 @@ include("menu.php");
 <h3>Contacts</h3>
 <table width=50% cellspacing=10 cellpadding=10>
 <tr><td valign=top nowrap>
-	<b>Luisa Bentivogli</b><br>
-	Site: <a href="http://hlt.fbk.eu/people/luisa_bentivogli">http://hlt.fbk.eu/people/bentivo</a><br>
-	Email : bentivo<img src="img/witat.gif">fbk.eu<br>
+	<a href="https://fredblain.org" target="_blank"><b>Fr&eacute;d&eacute;ric Blain</b></a><br>
+	Email : f.blain<img src="img/witat.gif">sheffield.ac.uk<br>
 </td><td valign=top nowrap>
-	<b>Christian Girardi</b><br>
-	Site: <a href="http://hlt.fbk.eu/people/cgirardi">http://hlt.fbk.eu/people/cgirardi</a><br>
-	Email : cgirardi<img src="img/witat.gif">fbk.eu<br>
+	<a href="https://www.sheffield.ac.uk/dcs/people/research-staff/marina-fomicheva" target="_blank"><b>Marina Fomicheva</b></a><br>
+	Email : m.fomicheva<img src="img/witat.gif">sheffield.ac.uk<br>
 </td><td valign=top nowrap>
-	<b>Marcello Federico</b><br>
-	Site: <a href="http://hlt.fbk.eu/people/federico">http://hlt.fbk.eu/people/federico</a><br>
-	Email : federico<img src="img/witat.gif">fbk.eu<br>
+	<a href="https://www.sheffield.ac.uk/dcs/people/academic/lucia-specia" target="_blank"><b>Lucia Specia</b></a><br>
+	Email : l.specia<img src="img/witat.gif">sheffield.ac.uk<br>
+</td></tr>
+<tr><td colspan=3 align=center nowrap>
+<tr><td valign=top nowrap>
+	<a href="https://www.pc.ut.ee/en/elizaveta-yankovskaya" target="_blank"><b>Lisa Yankovskaya</b></a><br>
+	Email : lisa.yankovskaya<img src="img/witat.gif">ut.ee<br>
+</td><td valign=top nowrap>
+	<a href="https://ee.linkedin.com/in/mark-fishel-0516ab9" target="_blank"><b>Mark Fishel</b></a><br>
+	Email : fishel<img src="img/witat.gif">ut.ee<br>
+</td><td valign=top nowrap>
 </td></tr>
 <tr><td colspan=3 align=center nowrap>
 <br>
-FBK - Fondazione Bruno Kessler &nbsp;<a href="http://www.fbk.eu/"><img src="img/logo_FBK.gif" width=100 height=70 title="FBK" border=0></a> 
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://hlt.fbk.eu/"><img valign=bottom src="img/hlt-logo.png" align=top height=67 title="HLT - Human Language Technology" border=0></a>&nbsp; Human Language Technology Group<br>
-<br>via Sommarive, 18 - 38100 Trento, Italy
+<a href="https://sheffield.ac.uk/" target="_blank"><img src="img/usfd-logo.jpg" width=200 title="USFD" border=0></a>
+&nbsp;
+<a href="https://www.ut.ee" target="_blank"><img src="img/utartu-logo.png" width=300 title="UTARTU" border=0></a>
+<!-- University of Sheffield, UK &#38;nbsp;<a href="http://www.fbk.eu/"><img src="img/logo_USFD.png" width=100 height=70 title="USFD" border=0></a>  -->
+<!-- &#38;nbsp;&#38;nbsp;&#38;nbsp;&#38;nbsp;<a href="http://hlt.fbk.eu/"><img valign=bottom src="img/hlt&#45;logo.png" align=top height=67 title="HLT &#45; Human Language Technology" border=0></a>&#38;nbsp; Human Language Technology Group<br> -->
+<!-- <br>via Sommarive, 18 &#45; 38100 Trento, Italy -->
 </td><tr>
 <tr><td colspan=3 align=center nowrap>
+The MT-Equal toolkit was written by <br /> Girardi, Christian, Luisa Bentivogli, Mohammad Amin Farajian and Marcello Federico. <br /> “MT-EQuAl: a Toolkit for Manual Assessment of Machine Translation Output”. <br />Proceedings of COLING 2014, the 25th International Conference on Computational Linguistics: System Demonstrations. Dublin, Ireland,  pp. 120–123. (<a href="https://www.aclweb.org/anthology/C14-2026.pdf" target="_blank">pdf</a>).
+<tr><td colspan=3 align=center nowrap>
 <hr><br>
-<a href="http://www.matecat.com/"><img valign=bottom src="img/matecat-logo.png" align=top title="MateCat project" border=0></a><br>
-The work was partially supported by the MateCat project funded by the European Union.
+<a href="https://browser.mt/"><img valign=bottom src="img/bergamot-logo.png" align=top title="Bergamot project" border=0 height="80"></a>
+<img valign=bottom src="img/eu-logo.png" align=top title="EU H2020" border=0 height="80">
+<br>
+<br>
+The work is supported by the <a href="https://browser.mt" target="_blank"><b>Bergamot project</b></a> funded by the European Union.
 </td>
 </tr>
 </table>

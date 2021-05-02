@@ -143,8 +143,9 @@ ul.dropdown ul li a					{ display: block; padding: 10px;  border-bottom: dotted 
     <div class="dropdown_2columns align_left">
     	<div style="">
         <ul class="simple dropdown">
-        	<li><a href="docs/MT-Equal_annotation_instructions.pdf" target="mtequal_docs">Annotation Instructions</a></li>
-            <li><a href="docs/MT-Equal_project_management_instructions.pdf" target="mtequal_docs">Project Management Instructions</a></li>                   
+        	<li><a href="docs/Bergamot_annotation-guidelines.pdf" target="mtequal_docs">Annotation Instructions</a></li>
+        	<!-- <li><a href="docs/MT-Equal_annotation_instructions.pdf" target="mtequal_docs">Annotation Instructions</a></li>
+           <li><a href="docs/MT-Equal_project_management_instructions.pdf" target="mtequal_docs">Project Management Instructions</a></li>  -->                 
             <li><a href="credits.php">Credits</a></li>
     	</ul>
     	</div>

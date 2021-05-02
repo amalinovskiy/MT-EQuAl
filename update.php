@@ -45,7 +45,9 @@ if (isset($action) && $action == "reset") {
 	}
 	
 } else if (isset($completed)) {
-	print saveDone($id,$userid,$completed);
+	$done = saveDone($id,$userid,$completed);
+	$nextUndone = getNextUndone($taskid, $userid);
+	echo $done."|||".$nextUndone[0]."|||".$nextUndone[1];
 } else if (isset($alignids)) {
 	saveAligment($id,$targetid,$userid,$check,$alignids);
 } else if (isset($tokenids)) {

@@ -50,7 +50,7 @@ li.selected {
 </style>
 
 <SCRIPT language="javascript">
-var DEFAULT_ERRORS_RANGES="[{\"val\": \"0\",\"label\": \"No errors\",\"color\": \"C8E8B8\"},{\"val\": \"1\",\"label\": \"Too many errors\",\"color\": \"F0D3A8\"}]";
+var DEFAULT_ERRORS_RANGES="[{\"val\": \"0\",\"label\": \"No critical errors\",\"color\": \"C8E8B8\"},{\"val\": \"1\",\"label\": \"Translation is unintelligible\",\"color\": \"F0D3A8\"}, {\"val\": \"7\",\"label\": \"Source is not understandable\",\"color\": \"e3e3e3\"}]";
 var DEFAULT_WORDALIGN_RANGES="[{\"val\": \"0\",\"label\": \"Possible alignment\",\"color\": \"BABABA\"},{\"val\": \"1\",\"label\": \"Sure alignment\",\"color\": \"000000\"}]";
 var DEFAULT_DOCANN_RANGES="[{\"val\": \"0\",\"label\": \"No annotation\",\"color\": \"C8E8B8\"},{\"val\": \"1\",\"label\": \"Too many annotations\",\"color\": \"F0D3A8\"}]";
 var DEFAULT_RANGES="[{\"val\": \"\",\"label\": \"\",\"color\": \"FFFFFF\"}]";
@@ -173,8 +173,10 @@ function defaultRanges(type) {
 		var ranges ="";
 		if (type == "quality") {
 			ranges = "[{\"val\": \"1\",\"label\": \"1\",\"color\": \"FFFF99\"},{\"val\": \"2\",\"label\": \"2\",\"color\": \"D9FF99\"},{\"val\": \"3\",\"label\": \"3\",\"color\": \"B2FF99\"},{\"val\": \"4\",\"label\": \"4\",\"color\": \"8CFF99\"},{\"val\": \"5\",\"label\": \"5\",\"color\": \"66FF99\"}]";
-		} else if (type == "errors") {
-			ranges = "[{\"val\": \"0\",\"label\": \"No errors\",\"color\": \"C8E8B8\"},{\"val\": \"1\",\"label\": \"Too many errors\",\"color\": \"F0D3A8\"},{\"val\": \"2\",\"label\": \"Reordering errors\",\"color\": \"69B4FF\"},{\"val\": \"3\",\"label\": \"Wrong lexical choice\",\"color\": \"B296FF\"},{\"val\": \"4\",\"label\": \"Missing word(s)\",\"color\": \"E9FF24\"},{\"val\": \"5\",\"label\": \"Superfluous word(s)\",\"color\": \"91F0FF\"},{\"val\": \"6\",\"label\": \"Morphology errors\",\"color\": \"FF9EFF\"},{\"val\": \"7\",\"label\": \"Casing and punctuation errors\",\"color\": \"A6445B\"}]";
+		} else if (type == "errors" || type == "errors_test") {
+			// ranges = "[{\"val\": \"0\",\"label\": \"No critical errors\",\"color\": \"C8E8B8\"},{\"val\": \"1\",\"label\": \"Too many errors\",\"color\": \"F0D3A8\"},{\"val\": \"2\",\"label\": \"Reordering errors\",\"color\": \"69B4FF\"},{\"val\": \"3\",\"label\": \"Wrong lexical choice\",\"color\": \"B296FF\"},{\"val\": \"4\",\"label\": \"Missing word(s)\",\"color\": \"E9FF24\"},{\"val\": \"5\",\"label\": \"Superfluous word(s)\",\"color\": \"91F0FF\"},{\"val\": \"6\",\"label\": \"Morphology errors\",\"color\": \"FF9EFF\"},{\"val\": \"7\",\"label\": \"Casing and punctuation errors\",\"color\": \"A6445B\"}]";
+			ranges = "[{\"val\": \"0\",\"label\": \"No critical errors\",\"color\": \"C8E8B8\"},{\"val\": \"1\",\"label\": \"Translation is unintelligible\",\"color\": \"F0D3A8\"},{\"val\": \"2\",\"label\": \"TOX\",\"color\": \"B70FFF\"},{\"val\": \"3\",\"label\": \"SAF\",\"color\": \"FF3838\"},{\"val\": \"4\",\"label\": \"NAM\",\"color\": \"349C2D\"},{\"val\": \"5\",\"label\": \"SEN\",\"color\": \"F4FF61\"},{\"val\": \"6\",\"label\": \"NUM\",\"color\": \"4AFFF3\"},{\"val\": \"7\",\"label\": \"Source is not understandable\",\"color\": \"E3E3E3\"}]";      
+//  ,{\"val\": \"13\",\"label\": \"Unintelligible source sentence\",\"color\": \"e3e3e3\"}]";
 		} else if (type == "wordaligner") {
 			ranges = "[{\"val\": \"0\",\"label\": \"Possible alignment\",\"color\": \"BABABA\"},{\"val\": \"1\",\"label\": \"Sure alignment\",\"color\": \"000000\"}]";
 		}
@@ -188,6 +190,8 @@ function setMandatoryRanges(selectel) {
 	var type = selectel.options[selectel.options.selectedIndex].value;
 	
 	if (type == "errors") {
+		showRanges(-1, type, DEFAULT_ERRORS_RANGES);
+	} else if (type == "errors_test"){
 		showRanges(-1, type, DEFAULT_ERRORS_RANGES);
 	} else if (type == "wordaligner") {
 		showRanges(-1, type, DEFAULT_WORDALIGN_RANGES);
@@ -253,6 +257,8 @@ if ($mysession["status"] == "root" || $mysession["status"] == "admin" || $mysess
 				  "randout" => "N",
 				  "instructions" => "",
 				  "ranges" => "[]",
+				  "batch_size" => "",
+				  "overlap_size" => "",
 				  "owner" => $mysession['userid']);
 	if (isset($ranges) && $ranges != "[]") {
 		$taskinfo["ranges"] = $ranges;
@@ -373,6 +379,8 @@ if (!isset($id) || $id<0 || !isset($tasks{$id})) {
   <tr><th bgcolor=#ddd align=right>
  	Task name:</th><td><input TYPE=text name="name" value="<?php echo $taskinfo['name']; ?>"> <font size=-1 color=gray>(es. TEST_Errors_EN-AR-ZH)</font> </td></tr>
 <tr><th bgcolor=#ddd align=right valign=top>Short description:</th><td> <textarea rows="3" cols="50" NAME="descr" ><?php echo stripslashes($taskinfo['descr']); ?></textarea></td></tr>
+<tr><th bgcolor=#ddd align=right valign=top>Batch size:<a href="#"><img src="img/question.png" width=18 onclick="alertify.alert('<table><td align=left><b>Batch size</b>: the number of sentences a user need to annotate</td></table>'); return false;"></a></th><td> <textarea rows="1" cols="50" NAME="batch_size" ><?php echo stripslashes($taskinfo['batch_size']); ?></textarea></td></tr>
+<tr><th bgcolor=#ddd align=right valign=top>Overlap size:<a href="#"><img src="img/question.png" width=18 onclick="alertify.alert('<table><td align=left><b>Overlap size</b>: the number of overlapping sentences between annotators, which are used to measure annotation agreement</td></table>'); return false;"></a></th><td> <textarea rows="1" cols="50" NAME="overlap_size" ><?php echo stripslashes($taskinfo['overlap_size']); ?></textarea></td></tr>
 
 <tr><th bgcolor=#ddd align=right valign=top>Instructions:</th><td> 
 <button onclick="return markup();" id=markupbutton>enable HTML editor</button><br>

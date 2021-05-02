@@ -188,6 +188,13 @@ function next(page) {
 	window.open(page,'_top');
 }
 
+function nextUndone(target_ids, user_id) {
+	page = document.getElementById("nextundonepage").value;
+
+	saveEditingComment(target_ids, user_id);
+	window.open(page,'_top');
+}
+
 function notDoneYet()  {
 	doneEl = document.getElementById("done");
  	if (doneEl != null) {
@@ -221,30 +228,59 @@ function activateDone(monitoring) {
  	}
 }
 
-function doneAndIndex(id,user_id,button) {
-	done(id,user_id,button);
-	//window.open('index.php#'+id,'_top');
+function updateNextUndone(id, task_id, sent_id) {
+	dataEl = document.getElementById('nextundonepage');
+	if (dataEl != null) {
+		dataEl.value = "errors.php?id="+id+"&taskid="+task_id+"&sentidx="+sent_id;
+	}
 }
 
-function done(id,user_id,button) {
+function doneAndIndex(id, target_ids, user_id, task_id, button) {
+	doneEl = document.getElementById("done");
+	saveEditingComment(target_ids, user_id);
+	if (doneEl.innerHTML == 'Confirm annotation?'){
+		done(id,user_id, task_id, button);
+	}
+	// window.open('index.php#'+id,'_top');
+}
+
+function saveEditingComment(target_ids, user_id) {
+	for (key in target_ids){
+		targetid = target_ids[key];
+		elid = "comm" + targetid + "_text";
+		commentEl = document.getElementById(elid);
+		
+		if (commentEl != null) {
+			save_comment(targetid, user_id, commentEl.value);
+		} else {
+			alert("Error while saving the comment! Please contact the administrator. (code: 1001)");
+		}
+
+	}
+}
+
+
+function done(id,user_id,task_id, button) {
 	button.disabled=true;
    	$.ajax({
  		url: 'update.php',
   		type: 'GET',
-      	data: "id="+id+"&userid="+user_id+"&completed=Y",
+      	data: "id="+id+"&userid="+user_id+"&completed=Y&taskid="+task_id,
   		async: false,
   		cache:false,
   		crossDomain: true,
   		success: function(response) {
-  			if (response != 1) {
+			confirmed = response.split("|||")[0];
+			nextUndoneId = response.split("|||")[1];
+			nextUndoneSentId = response.split("|||")[2];
+  			if (confirmed != true) {
   				alert("Sorry but an error occured saving data. Try again, please!");
   			} else {
-  				alreadyDone();
+				alreadyDone();
+				updateNextUndone(nextUndoneId, task_id, nextUndoneSentId);
   			}
   		},
   		error: function(response, xhr,err ) {
-        	//alert(err+"\nreadyState: "+xhr.readyState+"\nstatus: "+xhr.status+"\nresponseText: "+xhr.responseText);
-        	//alert(ERRORID);
         	switch(xhr.status) {
 				case 200: 
 					alert("Data saved!");
@@ -253,6 +289,7 @@ function done(id,user_id,button) {
 	});
     	
 }
+
 
 function getObject(name) {
     if (document.getElementById) {
@@ -322,7 +359,6 @@ function isSelected(id) {
 	var el = document.getElementById(id+"."+i);
 	while (el != null) {
     	if (el.style.backgroundColor != "") {
-    		//alert(id+"."+i + " " +el.style.backgroundColor);
     		return 1;
     	}
     	el = document.getElementById(id+"."+i+"-"+(i+1));

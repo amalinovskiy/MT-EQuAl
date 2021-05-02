@@ -123,7 +123,10 @@ function removeTask($taskid) {
 					if (safe_query($query) == 1) {
 						$query ="DELETE FROM task where id=$taskid";
 						if (safe_query($query) == 1) {
-							return 1;
+							$query ="DELETE FROM usertasksent where task_id=$taskid";
+							if (safe_query($query) == 1) {
+								return 1;
+							}
 						}
 					}
 				}
@@ -194,6 +197,425 @@ function getDoneTaskStats() {
 	return $hash;
 }
 
+function getErrorRate ($taskid, $annotatorid){
+        $query = "select eval from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid AND user_id=$annotatorid group by output_id";
+        $result = safe_query($query);
+
+
+        while( $row = mysql_fetch_assoc( $result)){
+                $annotations[] = $row['eval']; // Inside while loop
+        }
+        //print_r($annotations);
+
+        $total = count($annotations);
+        $error_count = array_count_values($annotations);
+		
+		if (array_key_exists(0,$error_count)){
+			$noerror = $error_count[0];
+		}else{
+			$noerror = 0;
+		}
+        
+        $error_rate = ($total - $noerror) / $total;
+        return array($total, round($error_rate, 3));
+}
+
+function getSourceWordCount($taskid, $annotatorid){
+	$query = "select text from annotation left join sentence on annotation.sentence_num=sentence.num where task_id=$taskid AND user_id=$annotatorid group by output_id;";
+        $result = safe_query($query);
+
+
+        while( $row = mysql_fetch_assoc( $result)){
+                $sourcetexts[] = $row['text']; // Inside while loop
+        }
+        //print_r($annotations);
+
+        $total = 0;
+		
+		foreach($sourcetexts as $text){
+			$total += str_word_count($text);
+		}
+        
+        return $total;
+}
+
+function getTaskSourceWordCount($taskid){
+	$query = "select text from sentence where task_id=$taskid and type='source';";
+        $result = safe_query($query);
+
+	$total = 0;
+        while( $row = mysql_fetch_assoc( $result)){
+                //$sourcetexts[] = $row['text']; // Inside while loop
+		$total += str_word_count($row['text']);
+        }
+        //print_r($annotations);
+
+        //$total = 0;
+
+	
+	//foreach($sourcetexts as $text){
+	//	$total += str_word_count($text);
+	//}
+        
+        return $total;
+}
+
+function getErrorNum($taskid, $annotatorid){
+		$query = "select output_id, eval from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid and user_id=$annotatorid";
+		$result = safe_query($query);
+		while( $row = mysql_fetch_assoc( $result)){
+	                $annotations[] = $row;
+		}
+		
+		$error_num_counter = array();
+		foreach($annotations as $annotation){
+			if (!array_key_exists($annotation['output_id'], $error_num_counter)){
+				$error_num_counter[$annotation['output_id']] = 0;
+			}
+			if ($annotation['eval'] == 1){
+				$error_num_counter[$annotation['output_id']] = 'many';
+			} elseif ($annotation['eval'] != 0){
+				$error_num_counter[$annotation['output_id']] += 1;
+			}
+		}
+
+		// print_r($error_num_counter);
+		$error_counter[0]=0;
+		$error_counter[1]=0;
+		$error_counter[2]=0;
+		$error_counter['>=3']=0;
+		$error_counter['many']=0;
+		foreach($error_num_counter as $num => $count)
+		{
+			if ($count === 'many'){
+					$error_counter['many'] += 1;
+			}else{
+				if ($count >= 3){
+						$error_counter['>=3'] += 1;
+				}else{
+						$error_counter[$count] += 1;
+				}
+			}
+		}
+
+		return $error_counter;
+}
+
+function getErrorTypeCounts($taskid, $annotatorid){
+	$query = "select eval, count(*) as cnt from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid and user_id=$annotatorid group by eval";
+	$result = safe_query($query);
+	while( $row = mysql_fetch_assoc( $result)){
+		$types[] = $row;
+	}
+
+	$type_counter = array();
+	foreach($types as $type){
+		$type_counter[$type['eval']] = $type['cnt'];
+	}
+
+	return $type_counter;
+}
+
+function sum_index($arr, $col_name){
+    $sum = 0;
+    foreach ($arr as $item) {
+        $sum += $item[$col_name];
+    }
+    return $sum;
+}
+
+function getErrorExistence($taskid, $annotatorid){
+	$query = "select output_id, eval from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid and user_id=$annotatorid";
+	$result = safe_query($query);
+	while( $row = mysql_fetch_assoc( $result)){
+			$annotations[] = $row; // Inside while loop
+	}
+
+	$existence = array();
+	foreach ($annotations as $ann){
+		if ($ann['eval'] == 0){
+			$existence[$ann['output_id']] = 0;
+		}else{
+			$existence[$ann['output_id']] = 1;
+		}
+	}
+
+	return $existence;
+}
+
+
+function getExistenceKappa($taskid, $annotatorid1, $annotatorid2){
+	$existence1 = getErrorExistence($taskid, $annotatorid1);
+	$existence2 = getErrorExistence($taskid, $annotatorid2);
+
+	$table = array("0,0" => 0,
+				   "0,1" => 0,
+				   "1,0" => 0,
+				   "1,1" => 0
+	);
+
+	// add counts for co-ocurred annotations
+	foreach ($existence1 as $output_id => $haserror1){
+		if (array_key_exists($output_id, $existence2)){
+			$haserror2 = $existence2[$output_id];
+			$compare_key = strval($haserror1).",".strval($haserror2);
+			$table[$compare_key] += 1;
+		}
+	}
+	
+	$total = array_sum($table);
+	// compute Po
+	$Po = ($table['0,0'] + $table['1,1']) / $total;
+	// compute Pe
+	$Pe = ($table['0,0'] + $table['0,1']) * ($table['0,0'] + $table['1,0']) / ($total * $total) + 
+		  ($table['1,1'] + $table['0,1']) * ($table['1,1'] + $table['1,0']) / ($total * $total);
+	
+	$Pe_approx = 1/2;
+	
+	//print_r($table);
+	//print $Pe;
+	$kappa_approx = 1 - (1 - $Po) / (1 - $Pe_approx);
+	if (($Po == 1) && ($Pe == 1)){
+		return array($total, NULL, round($kappa_approx, 4), round($Po, 4));
+	}else{
+		$kappa = 1 - (1 - $Po) / (1 - $Pe);
+		return array($total, round($kappa, 4), round($kappa_approx, 4), round($Po, 4));
+	}
+}
+
+function getTypeOverlap($taskid, $annotatorid1, $annotatorid2){
+	$query1 = "select output_id, group_concat(eval) as evals from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid and user_id=$annotatorid1 group by output_id";
+	$result1 = safe_query($query1);
+	while( $row = mysql_fetch_assoc( $result1)){
+			$types1[] = $row;
+	}
+
+	$query2 = "select output_id, group_concat(eval) as evals from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid and user_id=$annotatorid2 group by output_id";
+	$result2 = safe_query($query2);
+	while( $row = mysql_fetch_assoc( $result2)){
+			$types2[] = $row;
+	}
+
+	$id_types1 = array();
+	foreach ($types1 as $type){
+		$id_types1[$type['output_id']] = $type['evals'];
+	}
+
+	$id_types2 = array();
+	foreach ($types2 as $type){
+		$id_types2[$type['output_id']] = $type['evals'];
+	}
+
+	$total_overlap_score = 0;
+	$total = 0;
+
+	foreach ($id_types1 as $output_id => $type_list1){
+		if (array_key_exists($output_id, $id_types2)){
+			// compute overlap score for single annotation
+			$type_list2 = $id_types2[$output_id];
+			$type_list1 = explode(',', $type_list1);
+			$type_list2 = explode(',', $type_list2);
+
+			$len1 = count($type_list1);
+			$len2 = count($type_list2);
+			$max_len = max($len1, $len2);
+
+			// iteratively remove elements from the second list
+			$count = 0;
+			foreach ($type_list1 as $type1){
+				$result = removeFirstOccurrence($type1, $type_list2);
+				if ($result[0] == true){
+					$count += 1;
+					$type_list2 = $result[1];
+				}
+			}
+
+			$score = $count / $max_len;
+			$total_overlap_score += $score;
+			$total += 1;
+		}
+	}
+
+	return array($total, round($total_overlap_score/$total, 4));
+}
+
+function getSpanOverlap($taskid, $annotatorid1, $annotatorid2){
+	$query1 = "select output_id, group_concat(evaltext SEPARATOR '||') as spans from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid and user_id=$annotatorid1 group by output_id";
+	$result1 = safe_query($query1);
+	while( $row = mysql_fetch_assoc( $result1)){
+			$spans1[] = $row;
+	}
+
+	$query2 = "select output_id, group_concat(evaltext SEPARATOR '||') as spans from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid and user_id=$annotatorid2 group by output_id";
+	$result2 = safe_query($query2);
+	while( $row = mysql_fetch_assoc( $result2)){
+			$spans2[] = $row;
+	}
+
+	$id_spans1 = array();
+	foreach ($spans1 as $span){
+		if (!empty($span['spans']))
+			$id_spans1[$span['output_id']] = $span['spans'];
+	}
+
+	$id_spans2 = array();
+	foreach ($spans2 as $span){
+		if (!empty($span['spans']))
+			$id_spans2[$span['output_id']] = $span['spans'];
+	}
+
+	$total_overlap_score = 0;
+	$total = 0;
+
+	foreach ($id_spans1 as $output_id => $span_list1){
+		if (array_key_exists($output_id, $id_spans2)){
+			// compute overlap score for single annotation
+			$span_list2 = $id_spans2[$output_id];
+			$span_list1 = explode('||', $span_list1);
+			$span_list2 = explode('||', $span_list2);
+
+			$len1 = count($span_list1);
+			$len2 = count($span_list2);
+			$max_len = max($len1, $len2);
+
+			// iteratively remove elements from the second list
+			$count = 0;
+			foreach ($span_list1 as $span1){
+				$result = removeFirstOccurrenceFuzzy($span1, $span_list2);
+				if ($result[0] == true){
+					$count += 1;
+					$span_list2 = $result[1];
+				}
+			}
+
+			$score = $count / $max_len;
+			$total_overlap_score += $score;
+			$total += 1;
+		}
+	}
+	
+	if($total == 0){
+		return array(0, 0);
+	}else{
+		return array($total, round($total_overlap_score/$total, 4));
+	}
+}
+
+function computeOverlapScore($span_list1, $span_list2){
+	$total_overlap_score = 0;
+	$total = 0;
+
+
+	$len1 = count($span_list1);
+	$len2 = count($span_list2);
+	$max_len = max($len1, $len2);
+
+	// iteratively remove elements from the second list
+	$count = 0;
+	foreach ($span_list1 as $span1){
+		$result = removeFirstOccurrenceFuzzy($span1, $span_list2);
+		if ($result[0] == true){
+			$count += 1;
+			$span_list2 = $result[1];
+		}
+	}
+
+	$score = $count / $max_len;
+
+	return $score;
+}
+
+
+function removeFirstOccurrence($item, $arr){
+	$success = false;
+	if (($index = array_search($item, $arr)) !== false){
+		unset($arr[$index]);
+		$success = true;
+	}
+	return array($success, $arr);
+}
+
+function get_longest_common_subsequence($string_1, $string_2)
+{
+	$string_1_length = strlen($string_1);
+	$string_2_length = strlen($string_2);
+	$return          = '';
+	
+	if ($string_1_length === 0 || $string_2_length === 0)
+	{
+		// No similarities
+		return $return;
+	}
+	
+	$longest_common_subsequence = array();
+	
+	// Initialize the CSL array to assume there are no similarities
+	$longest_common_subsequence = array_fill(0, $string_1_length, array_fill(0, $string_2_length, 0));
+	
+	$largest_size = 0;
+	
+	for ($i = 0; $i < $string_1_length; $i++)
+	{
+		for ($j = 0; $j < $string_2_length; $j++)
+		{
+			// Check every combination of characters
+			if ($string_1[$i] === $string_2[$j])
+			{
+				// These are the same in both strings
+				if ($i === 0 || $j === 0)
+				{
+					// It's the first character, so it's clearly only 1 character long
+					$longest_common_subsequence[$i][$j] = 1;
+				}
+				else
+				{
+					// It's one character longer than the string from the previous character
+					$longest_common_subsequence[$i][$j] = $longest_common_subsequence[$i - 1][$j - 1] + 1;
+				}
+				
+				if ($longest_common_subsequence[$i][$j] > $largest_size)
+				{
+					// Remember this as the largest
+					$largest_size = $longest_common_subsequence[$i][$j];
+					// Wipe any previous results
+					$return       = '';
+					// And then fall through to remember this new value
+				}
+				
+				if ($longest_common_subsequence[$i][$j] === $largest_size)
+				{
+					// Remember the largest string(s)
+					$return = substr($string_1, $i - $largest_size + 1, $largest_size);
+				}
+			}
+			// Else, $CSL should be set to 0, which it was already initialized to
+		}
+	}
+	
+	// Return the list of matches
+	return $return;
+}
+
+function removeFirstOccurrenceFuzzy($item, $arr){
+	$THRESHOLD = 0.6;
+
+	$success = false;
+	// compare each element with item
+	foreach($arr as $idx => $str){
+		$substr = get_longest_common_subsequence($item, $str);
+
+		$len1 = strlen($substr);
+		$len2 = strlen($item);
+		$max_len = max($len1, $len2);
+
+		if (strlen($substr) >= 0.6 * $max_len){
+			unset($arr[$idx]);
+			$success = true;
+		}
+	}
+	return array($success, $arr);
+}
+
 function getDoneUserStats() {
 	$query = "select user_id,count(*) from done group by user_id";
 	
@@ -249,7 +671,7 @@ function getSourceSentenceIdMapping($task_id) {
 function getSentence($num, $taskid) {
 	$query = "SELECT type,lang,text,tokenization FROM sentence WHERE (num='$num' OR (linkto='$num' AND type='reference')) AND task_id='$taskid';";
 	$result = safe_query($query);	
-	$hash = array();
+	$hash =array();
 	if (mysql_num_rows($result) > 0) {
 		while($row = mysql_fetch_array($result)) {
 			$hash[$row["type"]] = array($row["lang"],$row["text"], $row["tokenization"]);
@@ -472,7 +894,7 @@ function saveErrors($source_id,$output_id,$user_id,$eval,$evalids="",$evaltext="
 		#print "Q: $query<br>";
 		safe_query($query);
 		
-		$query = "DELETE FROM annotation WHERE sentence_num='$source_id' AND output_id='$output_id' AND user_id=$user_id AND eval<2";
+		$query = "DELETE FROM annotation WHERE sentence_num='$source_id' AND output_id='$output_id' AND user_id=$user_id AND (eval<2 OR eval=7)";
 		#print "Q2: $query<br>";
 		safe_query($query);	
 	}
@@ -608,9 +1030,21 @@ function getSourceSentences($taskid) {
 	return $hash;
 }
 
+function getBatchedSourceSentences($taskid, $userid) {
+	$query = "SELECT num,s.lang,s.text,s.id FROM usertasksent t left join sentence s on t.sent_num = s.num WHERE t.task_id='$taskid' AND t.user_id='$userid';";
+	$result = safe_query($query);	
+	$hash = array();
+	if (mysql_num_rows($result) > 0) {
+		while ($row = mysql_fetch_row($result)) {
+			$hash[$row[0]] = array($row[1],$row[2],$row[3]);
+        }
+	}
+	return $hash;
+}
+
 # get an array with done sentece by a user
 function getDoneSentences($taskid,$userid) {
-	$query = "SELECT sentence_num FROM done LEFT JOIN sentence on done.sentence_num=sentence.num WHERE done.user_id=$userid AND sentence.task_id=$taskid AND completed ='Y'";
+	$query = "SELECT sentence_num,done.lasttime FROM done LEFT JOIN sentence on done.sentence_num=sentence.num WHERE done.user_id=$userid AND sentence.task_id=$taskid AND completed ='Y'";
 	$result = safe_query($query);	
 	$arr = array();
 	if (mysql_num_rows($result) > 0) {
@@ -837,8 +1271,17 @@ function addFileData ($taskid,$type,$tokenization,$filepath,$filename) {
        					if ($type == "reference") {
        						$query = "INSERT INTO sentence (id, type, lang, task_id, linkto, text, lasttime, tokenization) VALUES ('".$items[0] ."','".$type."','" .$items[1]."',$taskid,'". $mappingsID2NUM[$items[0]] ."','" .addslashes($items[2]) ."', now(),0);";
        					} else {
-       						$query = "INSERT INTO sentence (id, type, lang, task_id, linkto, text, lasttime, tokenization) VALUES ('".$items[0] ."','".$type."','" .$items[1]."',$taskid,'". $mappingsID2NUM[$items[0]] ."','" .addslashes($items[2]) ."', now(),$tokenization);";
-       					}
+						# qualification for error annotation task
+							if ($tasktype == "errors_test"){
+								if (count($items) < 5){
+									$errmsg = "<small>WARNING! Parse error on file $filename: for qualification testing gold annotation is needed [line: $linenum]</small><br>\n";
+									break;
+								}
+								$query = "INSERT INTO sentence (id, type, lang, task_id, linkto, text, lasttime, tokenization, gold_eval, gold_text) VALUES ('".$items[0] ."','".$type."','" .$items[1]."',$taskid,'". $mappingsID2NUM[$items[0]] ."','" .addslashes($items[2]) ."', now(),$tokenization, $items[3], '".$items[4]."');";
+							}else{
+								$query = "INSERT INTO sentence (id, type, lang, task_id, linkto, text, lasttime, tokenization) VALUES ('".$items[0] ."','".$type."','" .$items[1]."',$taskid,'". $mappingsID2NUM[$items[0]] ."','" .addslashes($items[2]) ."', now(),$tokenization);";
+							}
+					}
        				} else {
        					$errmsg = "WARNING! The source of sentence ".$items[0]." is missing. Add the source sentence aligned to this output sentence.<br>";
        				}
@@ -849,6 +1292,9 @@ function addFileData ($taskid,$type,$tokenization,$filepath,$filename) {
 			}
     	}
     	fclose($handle);
+	if ($type == 'source'){
+		split_task_data($taskid);
+	}
 		
 		if (strlen(trim($txpText)) > 0) {
     		if (strlen(trim($fileName)) > 0) {
@@ -909,6 +1355,8 @@ function deleteSentences($taskid,$type) {
 	#delete all sentences
 	$query = "DELETE FROM sentence WHERE task_id=$taskid AND type='$type';";
 	#$result = safe_query($query);
+	$query2 = "DELETE FROM usertasksent where task_id=$taskid";
+	safe_query($query2);
 	return safe_query($query);
 }
 
@@ -1020,6 +1468,142 @@ function getAnnotationReport ($taskid) {
 	return $hash_report;
 }
 
+function getNextUndone($task_id, $user_id){
+	if (task_with_batching($task_id)){
+		$query = "SELECT sent_num as num from usertasksent where task_id=$task_id AND user_id=$user_id and sent_num not in (SELECT sentence_num from done where user_id=$user_id and completed='Y') order by num limit 1";
+	}else{
+		$query = "SELECT num from sentence where task_id=$task_id and num not in (SELECT sentence_num from done where user_id=$user_id and completed='Y') order by num limit 1";
+	}
+	
+	$nextid = 0;
+	$result = safe_query($query);
+	while( $row = mysql_fetch_assoc( $result)){
+		$nextid = $row['num'];
+	}
+	
+	if (task_with_batching($task_id)){
+		$sentid = getBatchedPrevNext($task_id, $nextid, $user_id);
+	}else{
+		$sentid = getPrevNext($task_id, $nextid);
+	}
+
+	return array($nextid, $sentid[2]);
+}
+
+
+function task_with_batching($task_id){
+	$sizes = array();
+	$query = "select batch_size from task where id=$task_id";
+	$result = safe_query($query);
+	while( $row = mysql_fetch_assoc( $result)){
+			$sizes['batch_size'] = $row['batch_size'];
+	}
+
+	$batch_size = $sizes['batch_size'];
+
+	if($batch_size != 0){
+		return True;
+	}else{
+		return False;
+	}
+}
+
+function split_task_data($task_id) {
+	$sizes = array();
+	$query = "select batch_size, overlap_size from task where id=$task_id";
+	$result = safe_query($query);
+	while( $row = mysql_fetch_assoc( $result)){
+			$sizes['batch_size'] = $row['batch_size'];
+			$sizes['overlap_size'] = $row['overlap_size'];
+	}
+
+	$batch_size = $sizes['batch_size'];
+	$overlap_size = $sizes['overlap_size'];
+	
+
+	# split sentences into batches if batch_size is set
+	if($batch_size != 0){
+		# retrieve all source sentence id
+		$sentence_ids = array();
+		$query = "select num from sentence where task_id=$task_id and linkto is null order by num";
+		$result = safe_query($query);
+		while( $row = mysql_fetch_assoc( $result)){
+			$sentence_ids[] = $row['num'];
+		}
+
+		# retrieve all user ids in this task
+		$user_ids = array();
+		$query = "select user_id from usertask ut left join user u on ut.user_id = u.id where task_id=$task_id and u.status = 'annotator'";
+		$result = safe_query($query);
+		while( $row = mysql_fetch_assoc( $result)){
+			$user_ids[] = $row['user_id'];
+		}
+		
+		if (count($sentence_ids) != ($batch_size - $overlap_size)*count($user_ids) + $overlap_size){
+
+			print('Error when spliting batched data! This may cause a fatal error when batching the data!! Make sure N = (B - O) * U + O. N: number of sentences, B: batch size, O: overlap size, U: user number.');
+			return;
+		}
+		
+		# insert overlapped sentence
+		$overlapped_ids = array_slice($sentence_ids, 0, $overlap_size);
+		$rest_ids = array_slice($sentence_ids, $overlap_size);
+		
+		foreach($overlapped_ids as $sent_num){
+			foreach($user_ids as $user_id){
+				$query = "INSERT INTO usertasksent (user_id, task_id, sent_num) VALUES ($user_id, $task_id, $sent_num);";
+				safe_query($query);
+			}
+		}
+		# insert non-overlapped sentence
+		$rest_count = 0;
+		$user_num = 0;
+		foreach ($rest_ids as $sent_num){
+			if ($rest_count < $batch_size-$overlap_size){
+				$rest_count += 1;
+			}else{
+				$rest_count = 1;
+				$user_num += 1;
+			}
+			$query = "INSERT INTO usertasksent (user_id, task_id, sent_num) VALUES ($user_ids[$user_num], $task_id, $sent_num);";
+			safe_query($query);
+		}
+	}
+}
+
+function getRepeatedSentence($task_id, $user_id){
+	$hash_report = array();
+	if (task_with_batching($task_id)){
+		$query = "select dup.num1, a1.evals as eval1, a1.evaltexts as evaltext1, dup.num2, a2.evals as eval2, a2.evaltexts as evaltext2 from (select s1.num as num1, s2.num as num2 from (select s.num as num, s.text as text from usertasksent uts LEFT JOIN sentence s ON uts.sent_num = s.num WHERE uts.task_id=$task_id AND uts.user_id=$user_id) as s1, (select s.num as num, s.text as text from usertasksent uts LEFT JOIN sentence s ON uts.sent_num = s.num WHERE uts.task_id=$task_id AND uts.user_id=$user_id) as s2 where s1.num < s2.num and s1.text = s2.text) as dup left join (select sentence_num, group_concat(eval SEPARATOR '||') as evals, group_concat(evaltext SEPARATOR '||') as evaltexts from annotation left join sentence on annotation.output_id=sentence.num where task_id=$task_id and user_id=$user_id group by output_id) as a1 on dup.num1 = a1.sentence_num left join (select sentence_num, group_concat(eval SEPARATOR '||') as evals, group_concat(evaltext SEPARATOR '||') as evaltexts from annotation left join sentence on annotation.output_id=sentence.num where task_id=$task_id and user_id=$user_id group by output_id) as a2 on dup.num2 = a2.sentence_num";
+	}else{
+		$query = "select dup.num1, a1.evals as eval1, a1.evaltexts as evaltext1, dup.num2, a2.evals as eval2, a2.evaltexts as evaltext2 from (select s1.num as num1, s2.num as num2 from (select s.num as num, s.text as text from sentence s LEFT JOIN usertask ut ON ut.task_id = s.task_id WHERE s.task_id=$task_id AND ut.user_id=$user_id AND s.linkto is null) as s1, (select s.num as num, s.text as text from sentence s LEFT JOIN usertask ut ON ut.task_id = s.task_id WHERE s.task_id=$task_id AND ut.user_id=$user_id AND s.linkto is null) as s2 where s1.num < s2.num and s1.text = s2.text) as dup left join (select sentence_num, group_concat(eval SEPARATOR '||') as evals, group_concat(evaltext SEPARATOR '||') as evaltexts from annotation left join sentence on annotation.output_id=sentence.num where task_id=$task_id and user_id=$user_id group by output_id) as a1 on dup.num1 = a1.sentence_num left join (select sentence_num, group_concat(eval SEPARATOR '||') as evals, group_concat(evaltext SEPARATOR '||') as evaltexts from annotation left join sentence on annotation.output_id=sentence.num where task_id=$task_id and user_id=$user_id group by output_id) as a2 on dup.num2 = a2.sentence_num";
+	}
+
+	$result_done = safe_query($query);	
+	while ($row = mysql_fetch_row($result_done)) {
+		$hash_report[] = $row;
+	}
+	return $hash_report;
+}
+
+function getAnnotatorReport ($taskid) {
+	$hash_report = array();
+	$query = "select user_id, username, count(*) as ann_count, sum(LENGTH(text) - LENGTH(replace(text, ' ', '')) + 1) as wrd_count from (select distinct user_id, sentence_num, text from annotation left join sentence on sentence.num = annotation.sentence_num where task_id = $taskid) as annotated_sent left join user on user.id = user_id group by user_id";
+	$result = safe_query($query);	
+	while( $row = mysql_fetch_assoc( $result)){
+		$hash_report[] = $row;
+	}
+	return $hash_report;
+}
+
+function getAnnotations($taskid, $userid){
+	$query = "select num, id, eval, gold_eval, gold_text from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid and user_id=$userid order by id";
+	$result = safe_query($query);
+	while( $row = mysql_fetch_assoc( $result)){
+		$annotations[] = $row;
+	}
+	return $annotations;
+}
 
 function getAgreementSentences ($taskid) {
 	$query = "select lang,linkto,output_id,user_id,eval,evalids,text,tokenization from annotation left join sentence on annotation.output_id=sentence.num where task_id=$taskid AND type != 'source' AND type != 'reference' order by linkto,output_id,user_id,eval";
@@ -1027,10 +1611,56 @@ function getAgreementSentences ($taskid) {
 	return safe_query($query);	
 }
 
+# reverse of getSentence, the $num is the id for target sentence
+# values returned will still be source sentence information
+function getTargetSentence($num, $taskid){
+	$query = "SELECT s1.num, s1.type, s1.lang, s1.text, s1.tokenization FROM sentence as s1 left join sentence as s2 on s2.linkto=s1.num WHERE s2.num=$num AND s2.task_id=$taskid;";
+	$result = safe_query($query);	
+	$hash =array();
+	if (mysql_num_rows($result) > 0) {
+		while($row = mysql_fetch_array($result)) {
+			$hash[$row["type"]] = array($row["lang"],$row["text"], $row["tokenization"], $row["num"]);
+		}
+	}
+	return $hash;
+}
+
+function getTargetIds($sourceid, $taskid){
+	$query = "SELECT s2.num FROM sentence as s1 left join sentence as s2 on s2.linkto=s1.num WHERE s1.num=$sourceid AND s1.task_id=$taskid;";
+	$result = safe_query($query);	
+	$hash =array();
+	if (mysql_num_rows($result) > 0) {
+		while($row = mysql_fetch_assoc($result)) {
+			$hash[] = $row["num"];
+		}
+	}
+	return $hash;
+}
+
 #this function return the previous and next ids and the counter of a sentence
 function getPrevNext ($taskid, $id) {
 	$prevnext = array("","");
 	$source_sentences = getSourceSentences($taskid);
+	if (count($source_sentences) > 0) {
+		$prev="";
+		$i = 1;
+		while (list($k,$arr) = each($source_sentences)) {
+			if ($k == $id) {
+				if (list($next,$arr1) = each($source_sentences)) {
+					return array($prev, $next, $i);
+				}
+			}
+			$prev=$k;
+			$i++;
+		}
+		return array($prev,"", $i);
+	}
+	return array("","", 0);
+}
+
+function getBatchedPrevNext ($taskid, $id, $userid) {
+	$prevnext = array("","");
+	$source_sentences = getBatchedSourceSentences($taskid, $userid);
 	if (count($source_sentences) > 0) {
 		$prev="";
 		$i = 1;
@@ -1096,16 +1726,16 @@ function saveCSVFile ($intDir, $taskid, $userid="") {
 			#print "<h3>USER: ".$row[0]."</h3> $filecsv [$tasktype]";
 				
 			if (preg_match("/quality/i", $tasktype)) {
-				fwrite($fh,"ID\tlanguage_pair\tsystem\tscore\ttarget_tok_num\ttarget_text\tsource_tok_num\tsource_text\n");
+				fwrite($fh,"ID\tlanguage_pair\tsystem\tscore\ttarget_tok_num\ttarget_text\tsource_tok_num\tsource_text\tlasttime\n");
 			} else if (preg_match("/errors/i", $tasktype)) {
-			fwrite($fh,"ID\tlanguage_pair\tsystem\tannotation_typeid\tannotation_label\ttokenIDs\ttarget_tok_num\ttokenized_target_text\tsource_tok_num\tsource_text\n");
+			fwrite($fh,"ID\tlanguage_pair\tsystem\tannotation_typeid\tannotation_label\ttokenIDs\ttarget_tok_num\ttokenized_target_text\tsource_tok_num\tsource_text\tlasttime\n");
 			} else if (preg_match("/wordaligner/i", $tasktype)) {
-				fwrite($fh,"ID\tlanguage_pair\tsystem\tannotation_typeid\tannotation_label\ttokenIDs\ttarget_tok_num\ttokenized_target_text\tsource_tok_num\ttokenized_source_text\n");
+				fwrite($fh,"ID\tlanguage_pair\tsystem\tannotation_typeid\tannotation_label\ttokenIDs\ttarget_tok_num\ttokenized_target_text\tsource_tok_num\ttokenized_source_text\tlasttime\n");
 			} else {
-				fwrite($fh,"ID\tlanguage_pair\tsystem\tannotation_typeid\tannotation_label\ttokenIDs\ttarget_tok_num\ttarget_text\tsource_tok_num\tsource_text\n");
+				fwrite($fh,"ID\tlanguage_pair\tsystem\tannotation_typeid\tannotation_label\ttokenIDs\ttarget_tok_num\ttarget_text\tsource_tok_num\tsource_text\tlasttime\n");
 			}	
-			
-			$query = "SELECT output_id,id,type,eval,evalids,sentence_num,lang,text,tokenization FROM annotation LEFT JOIN sentence ON annotation.output_id=sentence.num WHERE user_id=".$userid." AND task_id=".$taskid." order by id;";
+
+			$query = "SELECT output_id,id,type,eval,evalids,sentence_num,lang,text,tokenization,annotation.lasttime FROM annotation LEFT JOIN sentence ON annotation.output_id=sentence.num WHERE user_id=".$userid." AND task_id=".$taskid." order by id;";
 				
 			$result_annotation = safe_query($query);
 			saveLog($taskid . " " . $taskname . " " . mysql_num_rows($result_annotation) . " " . $query);
@@ -1174,7 +1804,7 @@ function saveCSVFile ($intDir, $taskid, $userid="") {
 							continue;
 						}
 													
-						fwrite($fh,$row_annotation[1] ."\t". $row_source[0]."_".$row_annotation[6] ."\t". $row_annotation[2] ."\t".$row_annotation[3]."\t".$label ."\t". $strids ."\t". count($trg_tokens)."\t".join(" ", $trg_tokens)."\t".count($src_tokens)."\t".$src_text."\n"); 	
+						fwrite($fh,$row_annotation[1] ."\t". $row_source[0]."_".$row_annotation[6] ."\t". $row_annotation[2] ."\t".$row_annotation[3]."\t".$label ."\t". $strids ."\t". count($trg_tokens)."\t".join(" ", $trg_tokens)."\t".count($src_tokens)."\t".$src_text."\t".$row_annotation[9]."\n"); 	
 					} else if (preg_match("/wordaligner/i", $tasktype)) {
 						fwrite($fh,$row_annotation[1] ."\t". $row_source[0]."_".$row_annotation[6] ."\t". $row_annotation[2] ."\t".$row_annotation[3] ."\t".$label."\t". $row_annotation[4] ."\t". count($trg_tokens)."\t".join(" ", $trg_tokens)."\t".count($src_tokens)."\t".join(" ", $src_tokens)."\n"); 	
 					} else {
@@ -1774,6 +2404,145 @@ function exportXML ($userid) {
 }
 
 ### PRESENTATION FUNCTION ###
+function showFixedSentence ($lang, $text, $type = "", $tokenize = 0, $idx = "", $hashErrors = array(), $colorRange = array()) {
+	global $languages;
+	$spacebg = " class=token";
+	$tokenbg = " class=token";
+	if ($type == "output") {
+		$tokens = getTokens($lang, $text, $tokenize);
+		$text = "";
+		$hashTokenidErrortype = array();
+		if (count($tokens) > 0) {
+			for ($i=0; $i<count($tokens); $i++) {
+				#print "$i. ".$tokens[$i]."<br>";
+				$hashTokenidErrortype{($i+1)} = array();
+				$hashTokenidErrortype{($i+1)."-".($i+2)} = array();
+			}
+			$level=0;
+			while (list ($errID, $errARRAY) = each($hashErrors)) {
+			  if (!empty($errARRAY[0])) {
+			  	$tokids = preg_split("/,/", $errARRAY[0]);
+				//check the max number of lenght of the current segment of tokens
+				$loop = 0;
+				while (count($tokids) > 0) {
+					$catched_tids = array();
+					foreach ($tokids as $tids) {
+						if (trim($tids) == "") {
+							continue;
+						}
+						$span = preg_split("/ /", $tids);
+						if ($level > 0) {
+							for ($l=0; $l < count($hashTokenidErrortype{1}); $l++) {
+								$freePos=0;
+								foreach ($span as $tid) {
+									if (!isset($hashTokenidErrortype{$tid})) {
+										array_push($catched_tids, $tids);
+										break;
+									}
+									if (isset($hashTokenidErrortype{$tid}[$l]) && $hashTokenidErrortype{$tid}[$l]=="FFF") {
+										$freePos++;
+									}	
+								
+								}
+								if ($freePos == count($span)) {
+									foreach ($span as $tid) {
+										$hashTokenidErrortype{$tid}[$l] = $colorRange{$errID}[1];
+									}
+									array_push($catched_tids, $tids);
+									break;
+								}
+							}	
+							if (in_array($tids, $catched_tids)) {
+								continue;
+							}
+							
+						}
+						$freePos=0;
+						foreach ($span as $tid) {
+							#check if all token position are free
+							if (isset($hashTokenidErrortype{$tid}) && count($hashTokenidErrortype{$tid}) == $loop) {
+								$freePos++;
+							}
+						}
+						if ($freePos == count($span)) {
+							foreach ($span as $tid) {
+								if (isset($hashTokenidErrortype{$tid})) {
+									array_push($hashTokenidErrortype{$tid},$colorRange{$errID}[1]);
+								}
+							}
+							array_push($catched_tids, $tids);
+						}
+					}
+					$tokids = array_diff($tokids, $catched_tids);
+				
+					//put #FFF foreach remain empty value
+					foreach($hashTokenidErrortype as $tid => $val) {
+						if (count($hashTokenidErrortype{$tid}) == $loop) {
+							array_push($hashTokenidErrortype{$tid}, "FFF");
+						}
+					}
+					$loop++;
+				  }
+				}
+				$level++;
+			}
+		}
+	
+		$id=1;
+		foreach ($tokens as $token) {
+			if ($token == "__BR__") {
+				$text .= "<br>";
+			} else {
+				$text .= "<div id='$idx.$id' $tokenbg>$token";
+				if (isset($hashTokenidErrortype{$id})) {
+					foreach ($hashTokenidErrortype{$id} as $col) {
+						$text .= "<nobr><div style='font-size: 1px;
+  background: #". $col .";border-bottom: 1px solid ";
+						if ($col != "FFF") {
+							$text .= "#888;";
+						} else {
+							$text .= "#FFF;";
+						}
+						$text .= "height: 4px'>&nbsp;</div></nobr>";
+					}
+				}
+				$text .= "</div>";
+				if ($tokenize != 3) {
+					$spaceId=$id."-".($id+1);
+					$text .= "<div id='$idx.".$spaceId."' $spacebg>&nbsp;";
+					if (isset($hashTokenidErrortype{$spaceId})) {
+						foreach ($hashTokenidErrortype{$spaceId} as $col) {
+							$text .= "<nobr><div style='font-size: 5px;
+  background: #". $col ."; border-bottom: 1px solid ";
+							if ($col != "FFF") {
+								$text .= "#888;";
+							} else {
+								$text .= "#FFF;";
+							}
+							$text .= "height: 4px'>&nbsp;</div></nobr>";
+						}
+					}
+					$text .= "</div>";
+				}
+				$id++;
+			}
+		}
+	}
+
+	$html="<div class='cell $type";
+  if($type == "context") {
+    $html.="'><a href='https://en.wikipedia.org/wiki/".$text."' target='_blank'>".$text."</a></div>";
+    return $html;
+  }
+	if (isset($languages[$lang][2]) && $languages[$lang][2] == "rtl") {
+		$html.=" rtl";
+	}
+	$html.="'>$text</div>";
+	return $html;
+}
+
+
+### PRESENTATION FUNCTION ###
 function showSentence ($lang, $text, $type = "", $tokenize = 0, $idx = "", $hashErrors = array(), $colorRange = array()) {
 	global $languages;
 	$spacebg = " class=token onmouseover=\"this.className='orangebg orangeborderb'\" onmouseout=\"this.className='whitebg whiteborderb'\"";
@@ -1882,7 +2651,7 @@ function showSentence ($lang, $text, $type = "", $tokenize = 0, $idx = "", $hash
 					$text .= "<div id='$idx.".$spaceId."' $spacebg>&nbsp;";
 					if (isset($hashTokenidErrortype{$spaceId})) {
 						foreach ($hashTokenidErrortype{$spaceId} as $col) {
-							$text .= "<nobr><div style='font-size: 1px;
+							$text .= "<nobr><div style='font-size: 5px;
   background: #". $col ."; border-bottom: 1px solid ";
 							if ($col != "FFF") {
 								$text .= "#888;";
@@ -1898,16 +2667,17 @@ function showSentence ($lang, $text, $type = "", $tokenize = 0, $idx = "", $hash
 			}
 		}
 	}
-	
-	$html="<div class='cell $type";
+		$html="<div class='cell $type";
+  if($type == "context") {
+    $html.="'><a href='https://en.wikipedia.org/wiki/".$text."' target='_blank'>".$text."</a></div>";
+    return $html;
+  }
 	if (isset($languages[$lang][2]) && $languages[$lang][2] == "rtl") {
 		$html.=" rtl";
 	}
 	$html.="'>$text</div>";
 	return $html;
 }
-
-
 # tokenization values:
 # 0: NO
 # 1: YES, using spaces only
@@ -1933,12 +2703,17 @@ function getTokens  ($lang, $text, $tokenization = 2) {
 				#ord($ch)=194 (No-break space) U+00A0 &#160; 
 				if (($tokenization==1 && ($ch == " " || ord($ch) == 194)) || 
 					($tokenization==2 && ($ch == " " || ord($ch) == 194 || preg_match("/[\!|\?|\"|\'|\-|\/|\$|,|:|;|\.|\(|\)|\[|\]|\{|\}]/",$ch)))) {
-					if (strlen($token) > 0) {
-						array_push($tokens, $token);
+					if ($ch == ";" and $token == "&nbsp"){
+						array_push($tokens, "&nbsp;");
 						$token="";
-					}
-					if (trim($ch) != "") {
-						array_push($tokens, $ch);
+					} else{
+						if (strlen($token) > 0) {
+							array_push($tokens, $token);
+							$token="";
+						}
+						if (trim($ch) != "") {
+							array_push($tokens, $ch);
+						}
 					}
 				} else {
 					$token .="$ch";
